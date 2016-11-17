@@ -23,7 +23,7 @@
 #include <mpi.h>
 #include "kmeans.h"
 
-
+long long ops = 0;
 /*----< euclid_dist_2() >----------------------------------------------------*/
 /* square of Euclid distance between two multi-dimensional points            */
 __inline static
@@ -33,10 +33,14 @@ float euclid_dist_2(int    numdims,  /* no. dimensions */
 {
     int i;
     float ans=0.0;
+	
+	ops++;
 
     for (i=0; i<numdims; i++)
         ans += (coord1[i]-coord2[i]) * (coord1[i]-coord2[i]);
 
+	ops++;
+	ops += numdims * 5;
     return(ans);
 }
 
@@ -60,8 +64,13 @@ int find_nearest_cluster(int     numClusters, /* no. clusters */
         if (dist < min_dist) { /* find the min and its array index */
             min_dist = dist;
             index    = i;
+			
+			ops += 1;
         }
+		
+		ops += 2;
     }
+
     return(index);
 }
 
@@ -84,25 +93,39 @@ int mpi_kmeans(float    **objects,     /* in: [numObjs][numCoords] */
     float  **newClusters;    /* [numClusters][numCoords] */
     extern int _debug;
 
-    if (_debug) MPI_Comm_rank(comm, &rank);
+    //if (_debug) 
+	MPI_Comm_rank(comm, &rank);
 
     /* initialize membership[] */
     for (i=0; i<numObjs; i++) membership[i] = -1;
+	
+	ops += numObjs * 4;
 
     /* need to initialize newClusterSize and newClusters[0] to all 0 */
     newClusterSize = (int*) calloc(numClusters, sizeof(int));
     assert(newClusterSize != NULL);
     clusterSize    = (int*) calloc(numClusters, sizeof(int));
     assert(clusterSize != NULL);
-
     newClusters    = (float**) malloc(numClusters *            sizeof(float*));
+	
+	ops += numClusters * 3;
+	
     assert(newClusters != NULL);
     newClusters[0] = (float*)  calloc(numClusters * numCoords, sizeof(float));
+	
+	
+	ops += numClusters * numCoords;
+	
     assert(newClusters[0] != NULL);
     for (i=1; i<numClusters; i++)
         newClusters[i] = newClusters[i-1] + numCoords;
 
+	ops += numClusters * 7;
+	
     MPI_Allreduce(&numObjs, &total_numObjs, 1, MPI_INT, MPI_SUM, comm);
+	
+	ops++;
+	
     if (_debug) printf("%2d: numObjs=%d total_numObjs=%d numClusters=%d numCoords=%d\n",rank,numObjs,total_numObjs,numClusters,numCoords);
 
     do {
@@ -114,35 +137,53 @@ int mpi_kmeans(float    **objects,     /* in: [numObjs][numCoords] */
                                          clusters);
 
             /* if membership changes, increase delta by 1 */
-            if (membership[i] != index) delta += 1.0;
-
+            if (membership[i] != index) {
+				delta += 1.0;
+				ops += 2;
+			}				
+			
             /* assign the membership to object i */
             membership[i] = index;
 
             /* update new cluster centers : sum of objects located within */
             newClusterSize[index]++;
-            for (j=0; j<numCoords; j++)
+			
+			ops += 2;
+			
+            for (j=0; j<numCoords; j++) {
                 newClusters[index][j] += objects[i][j];
+			}
+			ops += 2 * numCoords;
         }
 
         /* sum all data objects in newClusters */
         MPI_Allreduce(newClusters[0], clusters[0], numClusters*numCoords,
                       MPI_FLOAT, MPI_SUM, comm);
+					  
+		ops += numClusters * numCoords;
+		
         MPI_Allreduce(newClusterSize, clusterSize, numClusters, MPI_INT,
                       MPI_SUM, comm);
 
+		ops += numClusters;
+					  
         /* average the sum and replace old cluster centers with newClusters */
         for (i=0; i<numClusters; i++) {
             for (j=0; j<numCoords; j++) {
-                if (clusterSize[i] > 1)
+                if (clusterSize[i] > 1) {
                     clusters[i][j] /= clusterSize[i];
+					ops += 2;
+				}
                 newClusters[i][j] = 0.0;   /* set back to 0 */
+				ops += 2;
             }
             newClusterSize[i] = 0;   /* set back to 0 */
         }
             
         MPI_Allreduce(&delta, &delta_tmp, 1, MPI_FLOAT, MPI_SUM, comm);
         delta = delta_tmp / total_numObjs;
+		
+		ops += 2;
 
         if (_debug) {
             double maxTime;
@@ -150,7 +191,15 @@ int mpi_kmeans(float    **objects,     /* in: [numObjs][numCoords] */
             MPI_Reduce(&curT, &maxTime, 1, MPI_DOUBLE, MPI_MAX, 0, comm);
             if (rank == 0) printf("%2d: loop=%d time=%f sec\n",rank,loop,curT);
         }
-    } while (delta > threshold && loop++ < 500);
+    } while (loop++ < 500);
+	
+	////////////////////////////////////
+	long long sum_ops = 0;
+	MPI_Reduce(&ops, &sum_ops, 1, MPI_LONG_LONG, MPI_SUM, 0, comm);
+	if (rank == 0) {
+		printf("%lld\n", sum_ops);
+	}
+	////////////////////////////////////
 
     if (_debug && rank == 0) printf("%2d: delta=%f threshold=%f loop=%d\n",rank,delta,threshold,loop);
 

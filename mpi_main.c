@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     io_timing = MPI_Wtime();
-
+	
     /* read data points from file ------------------------------------------*/
     objects = mpi_read(isInFileBinary, filename, &numObjs, &numCoords,
                        MPI_COMM_WORLD);
@@ -150,6 +150,8 @@ int main(int argc, char **argv) {
     for (i=1; i<numClusters; i++)
         clusters[i] = clusters[i-1] + numCoords;
 
+	/// 5 * numClusters + numClusters * numCoords
+	
     MPI_Allreduce(&numObjs, &totalNumObjs, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
 
     /* pick first numClusters elements in feature[] as initial cluster centers*/
@@ -158,12 +160,19 @@ int main(int argc, char **argv) {
             for (j=0; j<numCoords; j++)
                 clusters[i][j] = objects[i][j];
     }
+	
+	/// 2 * numClusters + 3 * numClusters * numCoords
+	
     MPI_Bcast(clusters[0], numClusters*numCoords, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
+	/// numClusters * numCoords
+	
     /* membership: the cluster id for each data object */
     membership = (int*) malloc(numObjs * sizeof(int));
     assert(membership != NULL);
 
+	/// numObjs
+	
     /* start the core computation -------------------------------------------*/
     mpi_kmeans(objects, numCoords, numObjs, numClusters, threshold, membership,
                clusters, MPI_COMM_WORLD);
@@ -175,8 +184,8 @@ int main(int argc, char **argv) {
     clustering_timing = timing - clustering_timing;
 
     /* output: the coordinates of the cluster centres ----------------------*/
-    mpi_write(isOutFileBinary, filename, numClusters, numObjs, numCoords,
-              clusters, membership, totalNumObjs, MPI_COMM_WORLD);
+    //mpi_write(isOutFileBinary, filename, numClusters, numObjs, numCoords,
+    //          clusters, membership, totalNumObjs, MPI_COMM_WORLD);
 
     free(membership);
     free(clusters[0]);
