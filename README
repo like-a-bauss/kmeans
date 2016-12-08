@@ -1,4 +1,19 @@
-This software is dervied from Professor Wei-keng Liao's parallel k-means
+Данный репозиторий был создан с целью сдачи первого задания по курсу 
+"Суперкомпьютерное моделирование и технологии программирования"
+
+Параллельная реализация алгоритма K-Means включает в себя 3 версии:
+ * OpenMP
+ * MPI
+ * CUDA
+ 
+Для проведения экспериментов была использована MPI-версия программы.
+Для компиляции использовалась команда make mpi, создающая исполняемый файл mpi_main.
+
+Версия CUDA не использовалась и не проверялась в связи с острым недостатком времени.
+Создание версии MPI+CUDA представляет определённый интерес.
+
+Примечания от авторов программы и дополнений к ней:
+"This software is dervied from Professor Wei-keng Liao's parallel k-means
 clustering code obtained on November 21, 2010 from
  http://users.eecs.northwestern.edu/~wkliao/Kmeans/index.html
 (http://users.eecs.northwestern.edu/~wkliao/Kmeans/simple_kmeans.tar.gz).
@@ -142,5 +157,5 @@ Wei-keng Liao (wkliao@ece.northwestern.edu)
 EECS Department
 Northwestern University
 
-Sep. 17, 2005
+Sep. 17, 2005"
 
